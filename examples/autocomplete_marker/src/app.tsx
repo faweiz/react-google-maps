@@ -252,10 +252,7 @@ async function createInfoWindow(event, setInfoWindowContent, setInfoWindowPositi
       '<br/> Feature type: ' + feature.featureType + '</span>';
 
   setInfoWindowContent(content);
-  console.log("setInfoWindowContent");
-  console.log(setInfoWindowContent);
   setInfoWindowPosition(event.latLng);
-
 }
 // Define styles.
 // Stroke and fill with minimum opacity value.
