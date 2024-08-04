@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import { APIProvider, ControlPosition, Map, MapMouseEvent } from '@vis.gl/react-google-maps';
+import { APIProvider, ControlPosition, Map, MapMouseEvent, useMap, InfoWindow } from '@vis.gl/react-google-maps';
 
 import ControlPanelChangeMapStyle from './control-panel-change-map-style';
 import { CustomMapControl } from './map-control';
 import MapHandler from './map-handler';
 import { MarkerWithInfowindow } from './marker-with-infowindow';
 import fetchWeatherData from './weather'; // Ensure fetchWeatherData is exported from weather.tsx
+
+let featureLayer: google.maps.FeatureLayer;
+let lastInteractedFeatureIds: string[] = [];
+let lastClickedFeatureIds: string[] = [];
 
 // Google Map API Key
 const API_KEY = globalThis.GOOGLE_MAPS_API_KEY ?? (process.env.GOOGLE_MAPS_API_KEY as string);
@@ -71,12 +75,15 @@ const App = () => {
   const [selectedPlace, setSelectedPlace] = useState<google.maps.places.PlaceResult | null>(null);
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [zoom, setZoom] = useState(15);
-  const [mapConfig, setMapConfig] = useState<MapConfig>(MAP_CONFIGS[2]);
+  const [mapConfig, setMapConfig] = useState<MapConfig>(MAP_CONFIGS[0]);
   // Handle click on map with marker
   const [clickedMarker, setClickedMarkers] = useState<ClickMarkers | null>(null);
   // Get Weather Data
   const [markerWeatherData, setMarkerWeatherData] = useState<any>(null);
   const [currentWeatherData, setCurrentWeatherData] = useState<any>(null);
+  // InfoWindow for Boundary
+  const [infoWindowContent, setInfoWindowContent] = useState<string | null>(null);
+  const [infoWindowPosition, setInfoWindowPosition] = useState<google.maps.LatLng | null>(null);
 
   const handleClickedMarker = async (event: MapMouseEvent) => {
     if (event.detail.latLng) {
@@ -88,6 +95,12 @@ const App = () => {
       const weather = await fetchWeatherData(newMarker.lat, newMarker.lng);
       setMarkerWeatherData(weather);
     }
+  };
+
+  // Handler to clear InfoWindow state when closed
+  const handleInfoWindowCloseClick = () => {
+    setInfoWindowContent(null);
+    setInfoWindowPosition(null);
   };
 
   // Get user current location (Browser) from GeoLocation
@@ -124,16 +137,23 @@ const App = () => {
           gestureHandling={'greedy'}
           disableDefaultUI={false}
           mapId={MAP_ID}
-	        mapTypeId={mapConfig.mapTypeId}
+          mapTypeId={mapConfig.mapTypeId}
           zoom={zoom}
           onZoomChanged={ev => setZoom(ev.detail.zoom)}
           onClick={handleClickedMarker}
         >
+          {/* <MapFeatures /> */}
             {/* <AdvancedMarker/> combined with an Infowindow. */}
           <MarkerWithInfowindow position={currentLocation} weatherData={currentWeatherData} />
             {/* Click on map with marker */}
           {clickedMarker && (
             <MarkerWithInfowindow position={{ lat: clickedMarker.lat, lng: clickedMarker.lng }} weatherData={markerWeatherData} />
+          )}
+
+          {infoWindowPosition && infoWindowContent && (
+            <InfoWindow position={infoWindowPosition} onCloseClick={handleInfoWindowCloseClick}>
+              <div dangerouslySetInnerHTML={{ __html: infoWindowContent }} />
+            </InfoWindow>
           )}
 
            {/* Map Style control panel */}
@@ -153,14 +173,125 @@ const App = () => {
               onPlaceSelect={setSelectedPlace}
               zoom={zoom}
               onZoomChange={zoom => setZoom(zoom)} />
+
+            <MapFeatures
+              onLocalityClick={handleClickedMarker}
+              setInfoWindowContent={setInfoWindowContent}
+              setInfoWindowPosition={setInfoWindowPosition}
+            />
         </Map>
       )}
     </APIProvider>
   );
 };
 
-export default App;
+// Data-Drive Styling for Boundaries
+const MapFeatures = ({ onLocalityClick, setInfoWindowContent, setInfoWindowPosition }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (map) {
+      // featureLayer = map.getFeatureLayer(google.maps.FeatureType.COUNTRY); // Country
+      // featureLayer = map.getFeatureLayer(google.maps.FeatureType.ADMINISTRATIVE_AREA_LEVEL_1); // State
+      // featureLayer = map.getFeatureLayer(google.maps.FeatureType.ADMINISTRATIVE_AREA_LEVEL_2); // County
+      // featureLayer = map.getFeatureLayer(google.maps.FeatureType.SCHOOL_DISTRICT); // School
+      // featureLayer = map.getFeatureLayer(google.maps.FeatureType.LOCALITY); // City
+      featureLayer = map.getFeatureLayer(google.maps.FeatureType.POSTAL_CODE); // Zip Code
+      
+      // Add the event listeners for the feature layer.
+      featureLayer.addListener('click', handleClick);
+      featureLayer.addListener('mousemove', handleMouseMove);
+      // Map event listener.
+      map.addListener('mousemove', () => {
+        // If the map gets a mousemove, that means there are no feature layers
+        // with listeners registered under the mouse, so we clear the last
+        // interacted feature ids.
+        if (lastInteractedFeatureIds?.length) {
+          lastInteractedFeatureIds = [];
+          featureLayer.style = applyStyle;
+        }
+      });
+      // Apply style on load, to enable clicking.
+      featureLayer.style = applyStyle;
 
+      // Click Map Marker
+      featureLayer.addListener('click', (event) => {
+        const clickedLatLng = event.latLng;
+        if (clickedLatLng) {
+          const clickedLocation = clickedLatLng;
+          onLocalityClick({ detail: { latLng: { lat: clickedLocation.lat(), lng: clickedLocation.lng() } } });
+        } else {
+          console.error('Unexpected event structure:', event);
+        }
+      });
+    }
+  }, [map, onLocalityClick]);
+  // Modify handleClick and handleMouseMove to use the passed setters
+  function handleClick(/* MouseEvent */ e) {
+    lastClickedFeatureIds = e.features.map(f => f.placeId);
+    lastInteractedFeatureIds = [];
+    featureLayer.style = applyStyle;
+    createInfoWindow(e, setInfoWindowContent, setInfoWindowPosition);
+  }
+  function handleMouseMove(/* MouseEvent */ e) {
+    lastInteractedFeatureIds = e.features.map(f => f.placeId);
+    featureLayer.style = applyStyle;
+  }
+  return null;
+};
+
+// Helper function for the infowindow.
+async function createInfoWindow(event, setInfoWindowContent, setInfoWindowPosition) {
+  let feature = event.features[0];
+  if (!feature.placeId) return;
+
+  // Update the infowindow.
+  const place = await feature.fetchPlace();
+  let content =
+      '<span style="font-size:small">Display name: ' + place.displayName +
+      '<br/> Place ID: ' + feature.placeId +
+      '<br/> Feature type: ' + feature.featureType + '</span>';
+
+  setInfoWindowContent(content);
+  console.log("setInfoWindowContent");
+  console.log(setInfoWindowContent);
+  setInfoWindowPosition(event.latLng);
+
+}
+// Define styles.
+// Stroke and fill with minimum opacity value.
+const styleDefault = {
+  strokeColor: '#810FCB',
+  strokeOpacity: 1.0,
+  strokeWeight: 2.0,
+  fillColor: 'white',
+  fillOpacity: 0.1,  // Polygons must be visible to receive events.
+};
+// Style for the clicked polygon.
+const styleClicked = {
+  ...styleDefault,
+  fillColor: '#810FCB',
+  fillOpacity: 0.5,
+};
+// Style for polygon on mouse move.
+const styleMouseMove = {
+  ...styleDefault,
+  strokeWeight: 4.0,
+};
+// Apply styles using a feature style function.
+function applyStyle(/* FeatureStyleFunctionOptions */ params) {
+  const placeId = params.feature.placeId;
+  //@ts-ignore
+  if (lastClickedFeatureIds.includes(placeId)) {
+    return styleClicked;
+  }
+  //@ts-ignore
+  if (lastInteractedFeatureIds.includes(placeId)) {
+    return styleMouseMove;
+  }
+  return styleDefault;
+}
+
+export default App;
 export function renderToDom(container: HTMLElement) {
   const root = createRoot(container);
   root.render(<App />);

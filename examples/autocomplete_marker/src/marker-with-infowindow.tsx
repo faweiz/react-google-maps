@@ -101,8 +101,8 @@ export const MarkerWithInfowindow = ({ position, weatherData }) => {
               <p><a href={zipCodeData.QuickLink} target="_blank">USA.com</a></p>
             </>
           )}
-          <p><a href={zipCodeData.QuickLink} target="_blank">Zillow</a></p>
-          <p><a href={zipCodeData.QuickLink} target="_blank">Redfin</a></p>
+          {/* <p><a href={zipCodeData.QuickLink} target="_blank">Zillow</a></p>
+          <p><a href={zipCodeData.QuickLink} target="_blank">Redfin</a></p> */}
         </InfoWindow>
       )}
     </>
