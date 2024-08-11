@@ -47,6 +47,7 @@ export const fetchWeatherData = async (lat: number, lng: number) => {
 
   if (timeSinceLastRequest < RATE_LIMIT_MS) {
     const delay = RATE_LIMIT_MS - timeSinceLastRequest;
+    return
     await new Promise(resolve => setTimeout(resolve, delay));
   }
     try {
