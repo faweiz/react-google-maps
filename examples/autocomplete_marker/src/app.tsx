@@ -74,7 +74,7 @@ const App = () => {
   const [selectedAutocompleteMode, setSelectedAutocompleteMode] = useState<AutocompleteMode>(autocompleteModes[0]);
   const [selectedPlace, setSelectedPlace] = useState<google.maps.places.PlaceResult | null>(null);
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [zoom, setZoom] = useState(15);
+  const [zoom, setZoom] = useState(5);
   const [mapConfig, setMapConfig] = useState<MapConfig>(MAP_CONFIGS[0]);
   // Handle click on map with marker
   const [clickedMarker, setClickedMarkers] = useState<ClickMarkers | null>(null);
@@ -178,6 +178,7 @@ const App = () => {
               onLocalityClick={handleClickedMarker}
               setInfoWindowContent={setInfoWindowContent}
               setInfoWindowPosition={setInfoWindowPosition}
+              zoom={zoom}
             />
         </Map>
       )}
@@ -186,35 +187,147 @@ const App = () => {
 };
 
 // Data-Drive Styling for Boundaries
-const MapFeatures = ({ onLocalityClick, setInfoWindowContent, setInfoWindowPosition }) => {
-  const map = useMap();
-  useEffect(() => {
-    if (map) {
-      // featureLayer = map.getFeatureLayer(google.maps.FeatureType.COUNTRY); // Country
-      // featureLayer = map.getFeatureLayer(google.maps.FeatureType.ADMINISTRATIVE_AREA_LEVEL_1); // State
-      // featureLayer = map.getFeatureLayer(google.maps.FeatureType.ADMINISTRATIVE_AREA_LEVEL_2); // County
-      // featureLayer = map.getFeatureLayer(google.maps.FeatureType.SCHOOL_DISTRICT); // School
-      // featureLayer = map.getFeatureLayer(google.maps.FeatureType.LOCALITY); // City
-      featureLayer = map.getFeatureLayer(google.maps.FeatureType.POSTAL_CODE); // Zip Code
+// const MapFeatures = ({ onLocalityClick, setInfoWindowContent, setInfoWindowPosition, zoom }) => {
+//   const map = useMap();
+//   useEffect(() => {
+//     if (map) {
+//       // featureLayer = map.getFeatureLayer(google.maps.FeatureType.COUNTRY); // Country
+//       // featureLayer = map.getFeatureLayer(google.maps.FeatureType.ADMINISTRATIVE_AREA_LEVEL_1); // State
+//       // featureLayer = map.getFeatureLayer(google.maps.FeatureType.ADMINISTRATIVE_AREA_LEVEL_2); // County
+//       // featureLayer = map.getFeatureLayer(google.maps.FeatureType.SCHOOL_DISTRICT); // School
+//       // featureLayer = map.getFeatureLayer(google.maps.FeatureType.LOCALITY); // City
+//       // featureLayer = map.getFeatureLayer(google.maps.FeatureType.POSTAL_CODE); // Zip Code
+
+
+//       if(zoom >= 1 && zoom <= 4){
+//        // zoomResult = "Entire World"
+//        featureLayer = map.getFeatureLayer(google.maps.FeatureType.COUNTRY); // Country
+//        console.log("zoom = Country = ", {zoom})
+//       }else if(zoom >= 5 && zoom < 10){
+//        // zoomResult = "Landmass/continent"
+//        featureLayer = map.getFeatureLayer(google.maps.FeatureType.ADMINISTRATIVE_AREA_LEVEL_1); // State
+//        console.log("zoom = State = ", {zoom})
+//       }else if(zoom >= 10 && zoom < 15){
+//        // zoomResult = "City"
+//        featureLayer = map.getFeatureLayer(google.maps.FeatureType.ADMINISTRATIVE_AREA_LEVEL_2); // County
+//        console.log("zoom = County = ", {zoom})
+//       }else if(zoom >= 15 && zoom < 17){
+//       //  zoomResult = "Streets"
+//       featureLayer = map.getFeatureLayer(google.maps.FeatureType.POSTAL_CODE); // Zip Code
+//       console.log("zoom = Zip Code = ", {zoom})
+//       }else if(zoom >= 17 && zoom < 23){
+//        // zoomResult = "Buildings"
+//       }
+
       
-      // Add the event listeners for the feature layer.
-      featureLayer.addListener('click', handleClick);
-      featureLayer.addListener('mousemove', handleMouseMove);
-      // Map event listener.
-      map.addListener('mousemove', () => {
-        // If the map gets a mousemove, that means there are no feature layers
-        // with listeners registered under the mouse, so we clear the last
-        // interacted feature ids.
-        if (lastInteractedFeatureIds?.length) {
-          lastInteractedFeatureIds = [];
-          featureLayer.style = applyStyle;
+//       // Add the event listeners for the feature layer.
+//       featureLayer.addListener('click', handleClick);
+//       featureLayer.addListener('mousemove', handleMouseMove);
+//       // Map event listener.
+//       map.addListener('mousemove', () => {
+//         // If the map gets a mousemove, that means there are no feature layers
+//         // with listeners registered under the mouse, so we clear the last
+//         // interacted feature ids.
+//         if (lastInteractedFeatureIds?.length) {
+//           lastInteractedFeatureIds = [];
+//           featureLayer.style = applyStyle;
+//         }
+//       });
+//       // Apply style on load, to enable clicking.
+//       featureLayer.style = applyStyle;
+
+//       // Click Map Marker
+//       featureLayer.addListener('click', (event) => {
+//         const clickedLatLng = event.latLng;
+//         if (clickedLatLng) {
+//           const clickedLocation = clickedLatLng;
+//           onLocalityClick({ detail: { latLng: { lat: clickedLocation.lat(), lng: clickedLocation.lng() } } });
+//         } else {
+//           console.error('Unexpected event structure:', event);
+//         }
+//       });
+//     }
+//   }, [map, onLocalityClick]);
+//   // Modify handleClick and handleMouseMove to use the passed setters
+//   function handleClick(/* MouseEvent */ e) {
+//     lastClickedFeatureIds = e.features.map(f => f.placeId);
+//     lastInteractedFeatureIds = [];
+//     featureLayer.style = applyStyle;
+//     createInfoWindow(e, setInfoWindowContent, setInfoWindowPosition);
+//   }
+//   function handleMouseMove(/* MouseEvent */ e) {
+//     lastInteractedFeatureIds = e.features.map(f => f.placeId);
+//     featureLayer.style = applyStyle;
+//   }
+//   return null;
+// };
+
+
+
+
+
+
+
+
+
+
+const MapFeatures = ({ onLocalityClick, setInfoWindowContent, setInfoWindowPosition, zoom }) => {
+  const map = useMap();
+  let currentFeatureLayer;
+  let previousFeatureLayer: google.maps.FeatureLayer;
+  let clickListener = null;
+  let mouseMoveListener = null;
+  let mapMouseMoveListener;
+
+  useEffect(() => {
+    if (!map) return;
+
+    // Function to update the feature layer based on zoom level
+    const updateFeatureLayer = () => {
+      // Remove previous feature layer listeners and clear styles if they exist
+      if (previousFeatureLayer) {
+        previousFeatureLayer.style = null; // Clear the previous style
+        if (clickListener) {
+          google.maps.event.removeListener(clickListener);
         }
-      });
-      // Apply style on load, to enable clicking.
-      featureLayer.style = applyStyle;
+        if (mouseMoveListener) {
+          google.maps.event.removeListener(mouseMoveListener);
+        }
+        if (mapMouseMoveListener) {
+          google.maps.event.removeListener(mapMouseMoveListener);
+        }
+      }
+
+      if (zoom >= 0 && zoom < 4) {
+        currentFeatureLayer = map.getFeatureLayer(google.maps.FeatureType.COUNTRY); // Country
+        console.log("zoom = Country = ", zoom);
+      } else if (zoom >= 4 && zoom < 8) {
+        currentFeatureLayer = map.getFeatureLayer(google.maps.FeatureType.ADMINISTRATIVE_AREA_LEVEL_1); // State
+        console.log("zoom = State = ", zoom);
+      } else if (zoom >= 8 && zoom < 12) {
+        currentFeatureLayer = map.getFeatureLayer(google.maps.FeatureType.ADMINISTRATIVE_AREA_LEVEL_2); // County
+        console.log("zoom = County = ", zoom);
+      } else if (zoom >= 12 && zoom < 23) {
+        currentFeatureLayer = map.getFeatureLayer(google.maps.FeatureType.POSTAL_CODE);// Zip Code
+        console.log("zoom = Zip Code = ", zoom);
+      }
+
+      // Apply style and add new listeners to the current feature layer
+      if (currentFeatureLayer) {
+        currentFeatureLayer.style = applyStyle;
+        clickListener = currentFeatureLayer.addListener('click', handleClick);
+        mouseMoveListener = currentFeatureLayer.addListener('mousemove', handleMouseMove);
+
+        // Add a listener to clear interacted feature ids
+        mapMouseMoveListener = map.addListener('mousemove', clearInteractedFeatureIds);
+
+      }
+
+      // Set the current layer as the previous one for the next zoom change
+      previousFeatureLayer = currentFeatureLayer;
 
       // Click Map Marker
-      featureLayer.addListener('click', (event) => {
+      currentFeatureLayer.addListener('click', (event) => {
         const clickedLatLng = event.latLng;
         if (clickedLatLng) {
           const clickedLocation = clickedLatLng;
@@ -223,21 +336,60 @@ const MapFeatures = ({ onLocalityClick, setInfoWindowContent, setInfoWindowPosit
           console.error('Unexpected event structure:', event);
         }
       });
-    }
-  }, [map, onLocalityClick]);
-  // Modify handleClick and handleMouseMove to use the passed setters
-  function handleClick(/* MouseEvent */ e) {
+
+    };
+
+    updateFeatureLayer();
+
+    // Cleanup previous feature layer when component unmounts or zoom changes
+    return () => {
+      if (previousFeatureLayer) {
+        previousFeatureLayer.style = null; 
+        if (clickListener) {
+          google.maps.event.removeListener(clickListener);
+        }
+        if (mouseMoveListener) {
+          google.maps.event.removeListener(mouseMoveListener);
+        }
+        if (mapMouseMoveListener) {
+          google.maps.event.removeListener(mapMouseMoveListener);
+        }
+      }
+    };
+  }, [map, zoom]);
+
+  // Handle click event on the feature layer
+  const handleClick = (e) => {
     lastClickedFeatureIds = e.features.map(f => f.placeId);
     lastInteractedFeatureIds = [];
-    featureLayer.style = applyStyle;
+    currentFeatureLayer.style = applyStyle;
     createInfoWindow(e, setInfoWindowContent, setInfoWindowPosition);
-  }
-  function handleMouseMove(/* MouseEvent */ e) {
+  };
+
+  // Handle mouse move event on the feature layer
+  const handleMouseMove = (e) => {
     lastInteractedFeatureIds = e.features.map(f => f.placeId);
-    featureLayer.style = applyStyle;
-  }
+    currentFeatureLayer.style = applyStyle;
+  };
+
+  // Clear interacted feature ids when mouse moves off the layer
+  const clearInteractedFeatureIds = () => {
+    if (lastInteractedFeatureIds.length) {
+      lastInteractedFeatureIds = [];
+      currentFeatureLayer.style = applyStyle;
+    }
+  };
+
   return null;
 };
+
+
+
+
+
+
+
+
 
 // Helper function for the infowindow.
 async function createInfoWindow(event, setInfoWindowContent, setInfoWindowPosition) {

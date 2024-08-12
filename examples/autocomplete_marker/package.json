@@ -3,6 +3,7 @@
   "dependencies": {
     "@types/node": "^22.1.0",
     "@vis.gl/react-google-maps": "latest",
+    "ag-charts-react": "^10.1.0",
     "axios": "^1.7.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

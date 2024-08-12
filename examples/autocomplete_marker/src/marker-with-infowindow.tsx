@@ -1,5 +1,5 @@
 // marker-with-infowindow.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   AdvancedMarker,
   InfoWindow,
@@ -8,7 +8,7 @@ import {
 } from '@vis.gl/react-google-maps';
 import fetchUSAZipCodeData from './usaZipCode';
 import fetchZipCodeData from './zipCode';
-import './app.css'
+import { AgCharts } from "ag-charts-react";
 
 export const MarkerWithInfowindow = ({ position, weatherData }) => {
   const [infowindowOpen, setInfowindowOpen] = useState(false);
@@ -19,6 +19,8 @@ export const MarkerWithInfowindow = ({ position, weatherData }) => {
   const [zipCode, setZipCode] = useState<string | null>(null);
   const [state, setState] = useState<string | null>(null);
   const geocoding = useMapsLibrary('geocoding');
+
+  const chartContainerRef = useRef(null);
 
   useEffect(() => {
     if (geocoding && position) {
@@ -48,17 +50,71 @@ export const MarkerWithInfowindow = ({ position, weatherData }) => {
           const zipData = await fetchZipCodeData(zipCodeComponent);
           setZipCodeData(zipData);
         }
-        // if (zipCodeComponent && stateComponent) {
-        //   setZipCode(zipCodeComponent);
-        //   setState(stateComponent);
-          // usa
-          // const usaZipData = await fetchUSAZipCodeData(zipCodeComponent, stateComponent);
-          // setUSAZipCodeData(usaZipData);
-        // }
       } else {
         console.error('Geocode was not successful for the following reason: ' + status);
       }
     });
+  };
+
+
+  function getPopulationRaceData() {
+    let whitePopulation = 0, whitePopulationPercent = 0;
+    let blackPopulation = 0, blackPopulationPercent = 0;
+    let hispanicPopulation = 0, hispanicPopulationPercent = 0;
+    let asianPopulation = 0, asianPopulationPercent = 0;
+    let americanIndianPopulation = 0, americanIndianPopulationPercent = 0;
+    let hawaiianPopulation = 0, hawaiianPopulationPercent = 0;
+    let otherPopulation = 0, otherPopulationPercent = 0;
+
+    if (zipCodeData) {
+        // Remove commas and parse the population string into an integer
+        whitePopulation = parseInt(zipCodeData.whitePopulation.replace(/,/g, ''), 10); whitePopulationPercent = parseFloat(zipCodeData.whitePopulationPercent);
+        blackPopulation = parseInt(zipCodeData.blackPopulation.replace(/,/g, ''), 10); blackPopulationPercent = parseFloat(zipCodeData.blackPopulationPercent);
+        hispanicPopulation = parseInt(zipCodeData.hispanicPopulation.replace(/,/g, ''), 10); hispanicPopulationPercent = parseInt(zipCodeData.hispanicPopulationPercent);
+        asianPopulation = parseInt(zipCodeData.asianPopulation.replace(/,/g, ''), 10); asianPopulationPercent = parseInt(zipCodeData.asianPopulationPercent);
+        americanIndianPopulation = parseInt(zipCodeData.americanIndianPopulation.replace(/,/g, ''), 10); americanIndianPopulationPercent = parseInt(zipCodeData.americanIndianPopulationPercent);
+        hawaiianPopulation = parseInt(zipCodeData.hawaiianPopulation.replace(/,/g, ''), 10); hawaiianPopulationPercent = parseInt(zipCodeData.hawaiianPopulationPercent);
+        otherPopulation = parseInt(zipCodeData.otherPopulation.replace(/,/g, ''), 10); otherPopulationPercent = parseInt(zipCodeData.otherPopulationPercent);
+    }
+
+    return [
+        { asset: "White", population: whitePopulation, populationPercent: whitePopulationPercent },
+        { asset: "Black", population: blackPopulation, populationPercent: blackPopulationPercent },
+        { asset: "Hispanic", population: hispanicPopulation, populationPercent: hispanicPopulationPercent },
+        { asset: "Asian", population: asianPopulation, populationPercent: asianPopulationPercent },
+        { asset: "American Indian", population: americanIndianPopulation, populationPercent: americanIndianPopulationPercent },
+        { asset: "Hawaiian", population: hawaiianPopulation, populationPercent: hawaiianPopulationPercent },
+        { asset: "Other:", population: otherPopulation, populationPercent: otherPopulationPercent },
+    ];
+  }
+
+  const PopulationPieChart = () => {
+      const [options, setOptions] = useState(null);
+
+      useEffect(() => {
+          const populationData = getPopulationRaceData();
+          setOptions({
+              data: populationData,
+              title: {
+                  text: "Population by Race",
+              },
+              series: [
+                  {
+                      type: "pie",
+                      angleKey: "population",
+                      calloutLabelKey: "asset",
+                      sectorLabelKey: "populationPercent", //"population",
+                      sectorLabel: {
+                          color: "white",
+                          fontWeight: "bold",
+                          // formatter: ({ value }) => `$${(value / 1000).toFixed(0)}K`,
+                      },
+                  },
+              ],
+          });
+      }, [zipCodeData]); // Update when zipCodeData changes
+
+      return options ? <AgCharts options={options} /> : <div>Loading chart...</div>;
   };
 
   return (
@@ -69,6 +125,7 @@ export const MarkerWithInfowindow = ({ position, weatherData }) => {
         position={position}
         title={"AdvancedMarker that opens an Infowindow when clicked."}
       />
+      
       {infowindowOpen && (
         <InfoWindow
           headerContent={<><p>Address:</p><h3>{address}</h3></>}
@@ -170,6 +227,8 @@ export const MarkerWithInfowindow = ({ position, weatherData }) => {
                     </tr>
                   </tbody>
                 </table>
+                {/* show Population By Race with Pie Chart */}
+                <PopulationPieChart />
               </>
           )}
         </InfoWindow>
@@ -177,4 +236,5 @@ export const MarkerWithInfowindow = ({ position, weatherData }) => {
     </>
   );
 };
+
 

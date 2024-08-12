@@ -1,6 +1,6 @@
 // zipCode.tsx
-export const fetchZipCodeData = async (zipCode: string, state: string) => {
-  // const url = `http://localhost:5000/zip/${zipCode}-${state}`;
+export const fetchZipCodeData = async (zipCode: string) => {
+  // const url = `http://localhost:5000/zip/${zipCode}`;
   const url = `https://zip-scraper-r57u.onrender.com/zip/${zipCode}`;
   console.log(url);
   

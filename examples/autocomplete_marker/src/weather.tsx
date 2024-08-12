@@ -29,7 +29,7 @@ const latCodeCache = new Map<number, any>();
 const lngCodeCache = new Map<number, any>();
 
 // Rate limit configuration
-const RATE_LIMIT_MS = 60000; // 1 minute
+const RATE_LIMIT_MS = 10000; // 10 second per request
 let lastRequestTime = 0;
 export const fetchWeatherData = async (lat: number, lng: number) => {
   if (latCodeCache.has(lat)) {
