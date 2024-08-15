@@ -6,9 +6,15 @@ import {
   useAdvancedMarkerRef,
   useMapsLibrary
 } from '@vis.gl/react-google-maps';
+import { AgCharts } from "ag-charts-react";
+import Slider from "react-slick";
+import "slick-carousel/slick/slick.css"; 
+import "slick-carousel/slick/slick-theme.css";
 import fetchUSAZipCodeData from './usaZipCode';
 import fetchZipCodeData from './zipCode';
-import { AgCharts } from "ag-charts-react";
+import fetchPropertyData from './property/property';
+
+// import propertyData from './property/properData.json';
 
 export const MarkerWithInfowindow = ({ position, weatherData }) => {
   const [infowindowOpen, setInfowindowOpen] = useState(false);
@@ -17,10 +23,10 @@ export const MarkerWithInfowindow = ({ position, weatherData }) => {
   const [usaZipCodeData, setUSAZipCodeData] = useState<any>(null); // usa
   const [zipCodeData, setZipCodeData] = useState<any>(null); // zip-codes
   const [zipCode, setZipCode] = useState<string | null>(null);
+  const [propertyData, setPropertyData] = useState<any>(null); // property Detail
   const [state, setState] = useState<string | null>(null);
   const geocoding = useMapsLibrary('geocoding');
 
-  const chartContainerRef = useRef(null);
 
   useEffect(() => {
     if (geocoding && position) {
@@ -33,7 +39,7 @@ export const MarkerWithInfowindow = ({ position, weatherData }) => {
     const latlng = { lat, lng };
 
     geocoder.geocode({ location: latlng }, async (results, status) => {
-      if (status === 'OK' && results[0]) {
+      if (status === 'OK' && results != null) {
         setAddress(results[0].formatted_address);
         const zipCodeComponent = results[0].address_components.find(component =>
           component.types.includes('postal_code')
@@ -50,6 +56,13 @@ export const MarkerWithInfowindow = ({ position, weatherData }) => {
           const zipData = await fetchZipCodeData(zipCodeComponent);
           setZipCodeData(zipData);
         }
+
+        const addressComponent = results[0].formatted_address
+        if(addressComponent){
+          const propertyValue = await fetchPropertyData(addressComponent);
+          setPropertyData(propertyValue)
+        }
+
       } else {
         console.error('Geocode was not successful for the following reason: ' + status);
       }
@@ -87,6 +100,31 @@ export const MarkerWithInfowindow = ({ position, weatherData }) => {
         { asset: "Other:", population: otherPopulation, populationPercent: otherPopulationPercent },
     ];
   }
+
+  const sliderSettings = {
+    dots: true,
+    infinite: true,
+    speed: 500,
+    slidesToShow: 1,
+    slidesToScroll: 1,
+    // autoplay: true,
+    // autoplaySpeed: 1000,
+    arrows: true, // Enable arrows
+  };
+
+  const getPhotos = () => {
+    return propertyData.propertyDetails.originalPhotos.map((photoSet, index) => {
+      // You can choose the appropriate image size you want to display here
+      const imageUrl = photoSet.mixedSources.jpeg[0].url; // For example, using the first jpeg image
+      return (
+        <div key={index}>
+          <div className="img-body">
+            <img src={imageUrl} alt={`Property ${index}`} style={{ width: '100%', height: 'auto' }} />
+          </div>
+        </div>
+      );
+    });
+  };
 
   const PopulationPieChart = () => {
       const [options, setOptions] = useState(null);
@@ -170,6 +208,132 @@ export const MarkerWithInfowindow = ({ position, weatherData }) => {
               </table>
             </>
           )}
+
+          {propertyData && (
+            <>
+            <h4>Property Details: <a href={propertyData.zillowURL} target="_blank">{propertyData.propertyDetails.streetAddress}</a></h4>
+              <table style={{ width: "100%"}}>
+                <tbody>
+                  <tr style={{textAlign: 'center'}}>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}><b>${propertyData.propertyDetails.zestimate}</b></td>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}>{propertyData.propertyDetails.bedrooms}</td>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}>{propertyData.propertyDetails.bathrooms}</td>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}>{propertyData.propertyDetails.livingArea}</td>
+                  </tr>
+                  <tr style={{textAlign: 'center'}}>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}>Estimate</td>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}>Beds</td>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}>Bath</td>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}>SqFt</td>
+                  </tr>
+                  <tr>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}>Type</td>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}>{propertyData.propertyDetails.propertyTypeDimension}</td>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}>Zestimate per sqft</td>
+                    {propertyData.propertyDetails.resoFacts.pricePerSquareFoot && (  
+                      <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}>${propertyData.propertyDetails.resoFacts.pricePerSquareFoot}</td>
+                    )}
+                  </tr>
+                  <tr style={{ backgroundColor:'#f2f2f2' }}>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}>Rental Estimate</td>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}><b>${propertyData.propertyDetails.rentZestimate}</b>/Month</td>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}>Mortgage Payment</td>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}>$1000/Month</td>
+                  </tr>
+                  <tr style={{ backgroundColor:'#f2f2f2' }}>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}>Property taxes</td>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}><b>${propertyData.propertyDetails.resoFacts.taxAnnualAmount}</b></td>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}>Tax Assessed Value</td>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}>${propertyData.propertyDetails.resoFacts.taxAssessedValue}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}>Year built</td>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}>{propertyData.propertyDetails.yearBuilt}</td>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}>Last sold</td>
+                    {propertyData.propertyDetails.priceHistory[0] && (  
+                      <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}><b>${propertyData.propertyDetails.lastSoldPrice}</b> ({propertyData.propertyDetails.priceHistory[0].date})</td>
+                    )}
+                  </tr>
+                  <tr style={{ backgroundColor:'#f2f2f2' }}>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}>Lot Size</td>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}>{propertyData.propertyDetails.lotSize} Sqft</td>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}>GreatSchool Score</td>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}><a href={propertyData.propertyDetails.schools[0].link}target="_blank">{propertyData.propertyDetails.schools[0].rating}</a>/<a href={propertyData.propertyDetails.schools[1].link}target="_blank">{propertyData.propertyDetails.schools[1].rating}</a>/<a href={propertyData.propertyDetails.schools[2].link}target="_blank">{propertyData.propertyDetails.schools[2].rating}</a></td>
+                  </tr>
+                  <tr style={{ backgroundColor:'#f2f2f2' }}>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}>Has HOA?</td>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}><b>{propertyData.propertyDetails.resoFacts.hoaFee}</b></td>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}>Has Garage ?</td>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}>{propertyData.propertyDetails.resoFacts.parkingFeatures} ({propertyData.propertyDetails.resoFacts.parkingCapacity} Total) </td>
+                  </tr>
+                  <tr style={{ backgroundColor:'#f2f2f2' }}>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}>Day on Martket</td>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}>{propertyData.propertyDetails.daysOnZillow}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p>{propertyData.propertyDetails.description}</p>
+              
+              <h5>Price History</h5>
+              <table style={{ width: "100%"}}>
+                <tbody>
+                  <tr>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}><b>Date</b></td>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}><b>Event</b></td>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}><b>Price</b></td>
+                  </tr>
+                  {propertyData.propertyDetails.priceHistory && propertyData.propertyDetails.priceHistory.map((priceHistory, index) => {
+                    const priceChangeColor = priceHistory.priceChangeRate >= 0 ? 'green' : 'red';
+                    return (
+                      <tr key={index}>
+                        <td style={{ borderTop: '1px solid #ddd', padding: '4px' }}>{priceHistory.date}</td>
+                        <td style={{ borderTop: '1px solid #ddd', padding: '4px' }}>{priceHistory.event}</td>
+                        <td style={{ borderTop: '1px solid #ddd', padding: '4px' }}>${priceHistory.price} 
+                          <span style={{ color: priceChangeColor }}>
+                            {priceHistory.priceChangeRate >= 0 ? ' +' : ''}{ (priceHistory.priceChangeRate * 100).toFixed(2) }%
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <h5>Tax History</h5>
+              <table style={{ width: "100%"}}>
+                <tbody>
+                  <tr>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}><b>Year</b></td>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}><b>Property Taxes</b></td>
+                    <td style={{ borderTop: '1px solid #ddd', padding: '4px'}}><b>Tax Assessment</b></td>
+                  </tr>
+                  {propertyData.propertyDetails.taxHistory && propertyData.propertyDetails.taxHistory.map((taxHistory, index) => {
+                    const year = new Date(taxHistory.time).getFullYear();
+                    const taxIncreaseColor = taxHistory.taxIncreaseRate >= 0 ? 'green' : 'red';
+                    const valueIncreaseColor = taxHistory.valueIncreaseRate >= 0 ? 'green' : 'red';
+                    return (
+                      <tr key={index}>
+                        <td style={{ borderTop: '1px solid #ddd', padding: '4px' }}>{year}</td>
+                        <td style={{ borderTop: '1px solid #ddd', padding: '4px' }}>${taxHistory.taxPaid} 
+                          <span style={{ color: taxIncreaseColor }}>
+                            {taxHistory.taxIncreaseRate >= 0 ? ' +' : ''}{ (taxHistory.taxIncreaseRate * 100).toFixed(2) }%
+                          </span>
+                        </td>
+                        <td style={{ borderTop: '1px solid #ddd', padding: '4px' }}>${taxHistory.value} 
+                          <span style={{ color: valueIncreaseColor }}>
+                            {taxHistory.valueIncreaseRate >= 0 ? ' +' : ''}{ (taxHistory.valueIncreaseRate * 100).toFixed(2) }%
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <Slider {...sliderSettings}>
+                {getPhotos()}
+              </Slider>
+            </>
+          )}
+
           {/* usa */}
           {/* {usaZipCodeData && (
             <>

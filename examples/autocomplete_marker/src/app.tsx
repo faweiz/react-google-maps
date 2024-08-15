@@ -300,16 +300,12 @@ const MapFeatures = ({ onLocalityClick, setInfoWindowContent, setInfoWindowPosit
 
       if (zoom >= 0 && zoom < 4) {
         currentFeatureLayer = map.getFeatureLayer(google.maps.FeatureType.COUNTRY); // Country
-        console.log("zoom = Country = ", zoom);
       } else if (zoom >= 4 && zoom < 8) {
         currentFeatureLayer = map.getFeatureLayer(google.maps.FeatureType.ADMINISTRATIVE_AREA_LEVEL_1); // State
-        console.log("zoom = State = ", zoom);
       } else if (zoom >= 8 && zoom < 12) {
         currentFeatureLayer = map.getFeatureLayer(google.maps.FeatureType.ADMINISTRATIVE_AREA_LEVEL_2); // County
-        console.log("zoom = County = ", zoom);
       } else if (zoom >= 12 && zoom < 23) {
         currentFeatureLayer = map.getFeatureLayer(google.maps.FeatureType.POSTAL_CODE);// Zip Code
-        console.log("zoom = Zip Code = ", zoom);
       }
 
       // Apply style and add new listeners to the current feature layer
