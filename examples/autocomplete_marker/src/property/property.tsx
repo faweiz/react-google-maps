@@ -26,3 +26,4 @@ export const fetchPropertyData = async (address: string) => {
     }
   };
   export default fetchPropertyData;
+  
